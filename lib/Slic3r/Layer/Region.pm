@@ -237,7 +237,7 @@ sub make_perimeters {
             my $filler = Slic3r::Fill::Rectilinear->new(layer_id => $self->layer->id);
             
             my $w = $self->perimeter_flow->width;
-            my @widths = (1.5 * $w, $w, 0.5 * $w);  # worth trying 0.2 too?
+            my @widths = (1.5 * $w, $w, 0.5 * $w, 0.2 * $w);  # worth trying 0.2 too?
             foreach my $width (@widths) {
                 my $flow = $self->perimeter_flow->clone(width => $width);
                 
@@ -246,7 +246,7 @@ sub make_perimeters {
                     map $_->noncollapsing_offset_ex(-0.5*$flow->scaled_width),
                     @gaps;
                 
-                if (0) {  # remember to re-enable t/dynamic.t
+                if (1) {  # remember to re-enable t/dynamic.t
                     # fill gaps using dynamic extrusion width, by treating them like thin polygons,
                     # thus generating the skeleton and using it to fill them
                     my %path_args = (

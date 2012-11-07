@@ -2,7 +2,7 @@ use Test::More;
 use strict;
 use warnings;
 
-plan skip_all => 'variable-width paths are currently disabled';
+#plan skip_all => 'variable-width paths are currently disabled';
 plan tests => 20;
 
 BEGIN {
@@ -51,16 +51,16 @@ sub scale_points (@) { map [scale $_->[X], scale $_->[Y]], @_ }
         my ($width) = @_;
         my $layer = Slic3r::Layer->new(
             object => $object,
-            id => 1,
-            slices => [
-                Slic3r::Surface->new(
-                    surface_type    => S_TYPE_INTERNAL,
-                    expolygon       => Slic3r::ExPolygon->new([ scale_points [0,0], [50,0], [50,$width], [0,$width] ]),
-                ),
-            ],
-            thin_walls => [],
+            id => 1
         );
         my $layerm = $layer->region(0);
+        $layerm->{slices} = [
+            Slic3r::Surface->new(
+                surface_type    => S_TYPE_INTERNAL,
+                expolygon       => Slic3r::ExPolygon->new([ scale_points [0,0], [50,0], [50,$width], [0,$width] ]),
+            )
+        ];
+        $layerm->{thin_walls} = [];
         $layer->make_perimeters;
         return $layerm;
     };
