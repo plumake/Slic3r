@@ -195,7 +195,7 @@ sub medial_axis {
     foreach my $polygon (@$expolygon) {
         Slic3r::Geometry::polyline_remove_short_segments($polygon, $width / 2);
         
-        # subdivide polygon segments so that we don't have anyone of them
+        # subdivide polygon segments so that we don't have any one of them
         # being longer than $width / 2
         $polygon->subdivide($width/2);
     }
@@ -364,7 +364,7 @@ sub medial_axis {
         @$polyline = map $_->{point}, @$polyline;
                 
         # cleanup
-        #$polyline = Slic3r::Geometry::douglas_peucker($polyline, $width / 7);
+        $polyline = Slic3r::Geometry::douglas_peucker($polyline, $width / 7);
         
         if (Slic3r::Geometry::same_point($polyline->[0], $polyline->[-1])) {
             next if @$polyline == 2;
