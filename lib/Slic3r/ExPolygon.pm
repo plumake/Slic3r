@@ -202,9 +202,10 @@ sub medial_axis {
     
     my $tri = Math::Geometry::Triangle->new();
     $tri->doVoronoi(1);
+    $tri->doEdges(1);
     $tri->addPolygon($expolygon->contour);
     $tri->addHole($_) for $expolygon->holes;
-    my (undef, $vtopo) = $tri->triangulate('BEP'); # options supress unused output
+    my ($topo, $vtopo) = $tri->triangulate('BEP'); # options supress unused output
 
     # remove references to ray edges from all nodes
     foreach my $node (@{$vtopo->{nodes}}) {
@@ -212,16 +213,35 @@ sub medial_axis {
         @{$node->{edges}} = grep !$_->{vector}->[0] && !$_->{vector}->[1], @{$node->{edges}};
     }
     
+    # Get the subset of nodes that are not too close to the polygon boundary.
+
+    # Distance from any node in the Voronoi diagram to the nearest point on the
+    # polygon can be approximated. For each edge emanating from the node, look
+    # up the corresponding edge in the Delaunay triangulation. The distance from
+    # the node point to either end of the Delaunay edge is roughly the radius
+    # of the maximum inscribed circle to the polygon at the node.
+    # (The approximate radius is greater than the true radius.)
+    
+    my @vnodes;
+    foreach my $node (@{$vtopo->{nodes}}) {
+        for (my $i = $#{$node->{edges}}; $i > -1; $i--) {
+            if (distance_between_points($node->{point},$topo->{edges}->[$node->{edges}->[$i]->{index}]->{nodes}->[0]->{point}) < $width / 2) {
+                my $edge = splice(@{$node->{edges}}, $i, 1);
+            }
+        }
+        push @vnodes, $node if @{$node->{edges}};
+    }
+
     # all nodes where more than two edges meet are branch nodes
-    my @branch_start_nodes = grep @{$_->{edges}} > 2, @{$vtopo->{nodes}};
+    my @branch_start_nodes = grep @{$_->{edges}} > 2, @vnodes;
     # if no branch nodes, dealing with a line or loop
     # if a line, nodes at ends will have only one edge reference 
     if (@branch_start_nodes == 0) {
-        @branch_start_nodes = grep @{$_->{edges}} == 1, @{$vtopo->{nodes}};
+        @branch_start_nodes = grep @{$_->{edges}} == 1, @vnodes;
     }
     # otherwise, it's a loop - any node can be the start node
     if (@branch_start_nodes == 0) {
-        push @branch_start_nodes, $vtopo->{nodes}->[0];
+        push @branch_start_nodes, $vnodes[0];
     }
 
     my @polyedges = ();
@@ -238,7 +258,9 @@ sub medial_axis {
             my $this_edge = $start_edge;
             #step along nodes: next node is the node on current edge that isn't this one
             while ($this_node = +(grep $_ != $this_node, @{$this_edge->{nodes}})[0]) {
-                # always add the point - duplicate start and end lets us detect polygons
+                # stop at point too close to polygon
+                last if (@{$this_node->{edges}} == 0);
+                # otherwise, always add the point - duplicate start and end lets us detect polygons
                 push @{$polyedges[-1]}, $this_node;
                 # stop at a branch node, and remember the edge so we don't backtrack
                 if (@{$this_node->{edges}} > 2) {
@@ -255,47 +277,6 @@ sub medial_axis {
         }
     }
 
-    # If the medial_axis had branches, you might want to filter out leaf
-    # edges. Or you might not. Not always clear when a leaf is a leaf.
-    
-    # This trims off any short polyedges that start at a branch node and end 
-    # at a leaf node, where all nodes are within the half the length of the 
-    # diagonal of a cube that encloses a circle of radius $width -
-    # the idea being to trim off the leaf edges that go into the two corners
-    # of the end of a rectangular area, since by the time we've reached the 
-    # branch node those leaves are attached to, we're at $width/2 distance 
-    # from the end of the rectange - the end.
-    
-    my $cuberad = ($width / 2) * sqrt(2);
-    for (my $i = $#polyedges; $i > -1; $i--) {
-        if (
-            ( (@{$polyedges[$i]->[0]->{edges}}  == 1 && @{$polyedges[$i]->[-1]->{edges}} > 2) ||
-              (@{$polyedges[$i]->[-1]->{edges}} == 1 && @{$polyedges[$i]->[0]->{edges}}  > 2)   )
-            &&  distance_between_points($polyedges[$i]->[0]->{point}, $polyedges[$i]->[-1]->{point}) <= $cuberad
-            ) {
-            # candidate for trimming, based on leaf end node, 
-            # so now check other nodes between start and end to be sure
-            my $remove = 1;
-            my $at_branch = @{$polyedges[$i]->[0]->{edges}} > 2 ? $polyedges[$i]->[0] : $polyedges[$i]->[-1];
-            foreach my $p (@{$polyedges[$i]}[1 .. @{$polyedges[$i]} - 2]) {
-                if (distance_between_points($at_branch->{point}, $p->{point}) > $cuberad) {
-                    $remove = 0;
-                    last;
-                }
-            }
-            if ($remove) { splice(@polyedges, $i, 1); }
-        }
-    }
-    
-    # What about a branch going out to the tip of a long, narrow, 
-    # tapering feature? Should we trim the tip back relative to the 
-    # narrow tip angle? or relative to the distance-to-wall on either 
-    # side of branch?
-    # Distance-to-wall can probably be approximated by looking up edges 
-    # in corresponding Delaunay triangulation. This would be close to a
-    # "minimally inscribed circle" calculation for each medial axis node,
-    # and could be refined.
-    
     # Now combine chains of edges into longer chains where their ends meet,
     # deciding which two chains to link at branch node sites.
 
