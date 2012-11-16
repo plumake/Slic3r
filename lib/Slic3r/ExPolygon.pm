@@ -200,7 +200,7 @@ sub medial_axis {
         $polygon->subdivide($width/2);
     }
     
-    my $tri = Math::Geometry::Triangle->new();
+    my $tri = Math::Geometry::Delaunay->new();
     $tri->doVoronoi(1);
     $tri->doEdges(1);
     $tri->addPolygon($expolygon->contour);
